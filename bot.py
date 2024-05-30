@@ -34,7 +34,7 @@ if __name__ == "__main__":
     db.close_connection()
     Created_db = Database(db.db_name)  
     Requests = Request(TOKEN)
-    bot = Bot(TOKEN,Commands,db,Requests)
+    bot = Bot(TOKEN,Commands,Created_db,Requests)
     bot.start()
     
 
