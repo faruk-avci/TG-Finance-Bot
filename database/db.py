@@ -12,6 +12,7 @@ class db:
             user_id INTEGER PRIMARY KEY,
             generated_id TEXT NOT NULL,
             username TEXT,
+            budget INTEGER DEFAULT 0,
             registration_date TEXT
         );
         '''
@@ -30,10 +31,10 @@ class db:
         create_transactions_table = '''
         CREATE TABLE IF NOT EXISTS transactions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_stock_id INTEGER NOT NULL,
+            user_stock_id INTEGER ,
             user_id INTEGER NOT NULL,
-            stock_symbol TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
+            stock_symbol TEXT ,
+            quantity INTEGER ,
             price REAL NOT NULL,
             date TEXT NOT NULL,
             sell_or_buy TEXT NOT NULL,

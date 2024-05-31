@@ -5,6 +5,8 @@ class Database:
         self.db_name = db_name
     def connect_db(self):
         conn = sqlite3.connect(self.db_name)
+        # add some delay to prevent database is locked error
+        conn.execute('PRAGMA busy_timeout = 30000')
         return conn
 
     def check_if_user_exists(self, user_id):
@@ -41,6 +43,15 @@ class Database:
         else:
             return None
     
+    def get_user_budget(self, user_id):
+        if self.check_if_user_exists(user_id):
+            conn = self.connect_db()
+            c = conn.cursor()
+            c.execute('SELECT budget FROM users WHERE user_id = ?', (user_id,))
+            budget = c.fetchone()
+            conn.close()
+            return budget
+        
     def get_transactions(self):
         conn = self.connect_db()
         c = conn.cursor()
@@ -71,6 +82,20 @@ class Database:
         conn.commit()
         conn.close()
     
+    def add_balance(self, user_id, amount):
+        conn = self.connect_db()
+        c = conn.cursor()
+        c.execute('UPDATE users SET budget = budget + ? WHERE user_id = ?', (amount, user_id))
+        conn.commit()
+        conn.close()
+    
+    def withdraw_balance(self, user_id, amount):
+        conn = self.connect_db()
+        c = conn.cursor()
+        c.execute('UPDATE users SET budget = budget - ? WHERE user_id = ?', (amount, user_id))
+        conn.commit()
+        conn.close()
+
     def delete_stock(self, user_id, stock):
         conn = self.connect_db()
         c = conn.cursor()

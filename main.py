@@ -1,8 +1,8 @@
-from database.db import db
 from db_manager.database import Database
-from bot.bot import Bot
 from commands.commands import Commands
 from request.request import Request
+from database.db import db
+from bot.bot import Bot
 from dotenv import load_dotenv
 import os
 

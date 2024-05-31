@@ -55,14 +55,13 @@ class Commands:
             update.message.reply_text("You are not registered already!")
 
     def view_stocks(self, update, context):
+        budget = self.db.get_user_budget(update.message.from_user.id)
         stocks = self.db.get_user_stocks(update.message.from_user.id)
+        stock_list = ""
         if stocks:
-            stock_list = ""
             for stock in stocks:
-                stock_list += f"Symbol: {stock[0]}, Quantity: {stock[1]}, Average: {stock[2]}\n\n"
-            update.message.reply_text(stock_list)
-        else:
-            update.message.reply_text("You don't have any stocks yet!")
+                stock_list += f"Stock: {stock[0]}, Quantity: {stock[1]}, Average Price: {stock[2]}\n"
+        update.message.reply_text(f"Budget: {budget[0]}\n{stock_list}")        
     
     def buy(self, update, context):
             user_id = update.message.from_user.id
@@ -90,51 +89,55 @@ class Commands:
                
                 if stock_symbol.endswith(".IS"):
                     stock_symbol = stock_symbol[:-3]
-
-                if len(command_params) == 4:
-                    with self.db.connect_db() as conn:
-                        c = conn.cursor()
-                        stock = self.db.get_user_stock(user_id, stock_symbol)
-
-                        if stock:
-                            new_quantity = stock[1] + quantity
-                            new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
-                            self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
-                            update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
-
-                        else:
-                            self.db.add_stock(user_id, stock_symbol, quantity, price)
-                            stock = self.db.get_user_stock(user_id, stock_symbol)
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
-                            update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
-                        conn.commit()
-
-                elif len(command_params) == 3:
-                    update.message.reply_text("You didn't specify a price. Using the current market price.")
-                    with self.db.connect_db() as conn:
-
-                        c = conn.cursor()
-                        stock = self.db.get_user_stock(user_id, stock_symbol)
-                        if stock:
-                            new_quantity = int(stock[1]) + quantity
-                            new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
-                            self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
-                            update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
-                        else:
-                            self.db.add_stock(user_id, stock_symbol, quantity,price)
-                            stock = self.db.get_user_stock(user_id, stock_symbol)
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
-                            update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
-                        conn.commit()
                 
+                if self.db.get_user_budget(user_id)[0] >= quantity * price:
+
+                    if len(command_params) == 4:
+                        with self.db.connect_db() as conn:
+                            c = conn.cursor()
+                            stock = self.db.get_user_stock(user_id, stock_symbol)
+                            price = float(command_params[3])
+                            if stock:
+                                new_quantity = stock[1] + quantity
+                                new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
+                                self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
+
+                            else:
+                                self.db.add_stock(user_id, stock_symbol, quantity, price)
+                                stock = self.db.get_user_stock(user_id, stock_symbol)
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
+                            self.db.add_balance(user_id, -1 * quantity * price)
+                            conn.commit()
+
+                    elif len(command_params) == 3:
+                        update.message.reply_text("You didn't specify a price. Using the current market price.")
+                        with self.db.connect_db() as conn:
+
+                            c = conn.cursor()
+                            stock = self.db.get_user_stock(user_id, stock_symbol)
+                            if stock:
+                                new_quantity = int(stock[1]) + quantity
+                                new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
+                                self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
+                            else:
+                                self.db.add_stock(user_id, stock_symbol, quantity,price)
+                                stock = self.db.get_user_stock(user_id, stock_symbol)
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
+                            self.db.add_balance(user_id, -1 * quantity * price)
+                            conn.commit()
+                    else:
+                            update.message.reply_text("Invalid parameters. Please use /buy <symbol> <quantity> <price(optional)>")
                 else:
-                    update.message.reply_text("Invalid parameters. Please use /buy <symbol> <quantity> <price(optional)>")
+                    update.message.reply_text("You don't have enough balance to buy that amount of shares.")
             
             else:
                 update.message.reply_text("You need to register first using /register.")
-
 
     def sell(self, update, context):
         try:
@@ -166,6 +169,8 @@ class Commands:
                     with self.db.connect_db() as conn:
                         c = conn.cursor()
                         stock = self.db.get_user_stock(user_id, stock_symbol)
+                        price = float(command_params[3])
+
                         if stock:
                             if stock[1] < quantity:
                                 raise ValueError("Error: You don't have enough shares to sell.")
@@ -176,7 +181,7 @@ class Commands:
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, stock[2])
                             self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "SELL", datetime.datetime.now())
                             update.message.reply_text(f"Sold {quantity} shares of {stock_symbol} at {price} successfully!")
-
+                            self.db.add_balance(user_id, quantity * price)
                         else:
                             raise ValueError("Error: You don't have any shares of this stock.")
                         conn.commit()
@@ -196,6 +201,7 @@ class Commands:
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, stock[2])
                             self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "SELL", datetime.datetime.now())
                             update.message.reply_text(f"Sold {quantity} shares of {stock_symbol} at {price} successfully!")
+                            self.db.add_balance(user_id, quantity * price)
                         else:
                             raise ValueError("Error: You don't have any shares of this stock.")
                         conn.commit()
@@ -208,6 +214,44 @@ class Commands:
             update.message.reply_text(str(e))
         except Exception as e:
             update.message.reply_text(f"An error occurred: {str(e)}")
+
+    def add_balance(self, update, context):
+        user_id = update.message.from_user.id
+        if self.db.check_if_user_exists(user_id):
+            command_params = update.message.text.split()
+            if len(command_params) == 2:
+                amount = float(command_params[1])
+                if amount <= 0:
+                    update.message.reply_text("Amount must be greater than 0.")
+                else:
+                    self.db.add_balance(user_id, amount)
+                    update.message.reply_text(f"Added {amount} to your balance.")
+                    self.db.add_transaction(None,user_id, None, None, amount, datetime.datetime.now(),"DEPOSIT")
+            else:
+                update.message.reply_text("Invalid parameters. Please use /add_balance <amount>")
+        else:
+            update.message.reply_text("You need to register first using /register.")
+
+    def withdraw(self, update, context):
+        user_id = update.message.from_user.id
+        if self.db.check_if_user_exists(user_id):
+            command_params = update.message.text.split()
+            if len(command_params) == 2:
+                amount = float(command_params[1])
+                if amount <= 0:
+                    update.message.reply_text("Amount must be greater than 0.")
+                else:
+                    budget = self.db.get_user_budget(user_id)
+                    if budget[0] >= amount:
+                        self.db.withdraw_balance(user_id, amount)
+                        update.message.reply_text(f"Withdrew {amount} from your balance.")
+                        self.db.add_transaction(None,user_id, None, None, amount,  datetime.datetime.now(),"WITHDRAW")
+                    else:
+                        update.message.reply_text("You don't have enough balance to withdraw that amount.")
+            else:
+                update.message.reply_text("Invalid parameters. Please use /withdraw <amount>")
+        else:
+            update.message.reply_text("You need to register first using /register.")
 
     def view_transactions(self, update, context):
         if self.db.check_if_user_exists(update.message.from_user.id):
@@ -222,5 +266,10 @@ class Commands:
                     update.message.reply_text("No transactions found.")
             else:
                 update.message.reply_text("You are not authorized to view transactions.")
+  
         else:
             update.message.reply_text("You need to register first using /register.")
+
+
+
+
