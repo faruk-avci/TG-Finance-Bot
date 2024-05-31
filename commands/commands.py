@@ -8,7 +8,8 @@ class Commands:
 
     def start(self, update: Update, context: CallbackContext):
         update.message.reply_text("Welcome to the Stock Bot! Type /help to see the available commands.")
-        self.register(update, context)
+        if not self.db.check_if_user_exists(update.message.from_user.id):
+            self.register(update, context)
 
     def help(self, update: Update, context: CallbackContext):
         help_text = (
@@ -70,19 +71,23 @@ class Commands:
 
                 stock_symbol = command_params[1].upper()
                 quantity = int(command_params[2].replace(",", ""))
-                quote = self.request.get_price(stock_symbol)
-
-                if len(command_params) == 4:
-                    price = float(command_params[3])
+                
+                if stock_symbol in self.request.stock_symbols:
+                    price = float(self.request.stock_prices[stock_symbol])
                 else:
-                    price = quote["price"]
+                    # check if the stock symbol is valid
+                    quote = self.request.get_price(stock_symbol)
+                    if "error" in quote:
+                        raise ValueError("Error: Stock symbol not found.")
+                    else:
+                        price = float(quote["price"])
+                        self.request.stock_prices[stock_symbol] = price
+
 
                 if quantity <= 0 or price <= 0:
                     raise ValueError("Error: Quantity and price must be greater than 0.")
 
-                if "error" in quote:
-                    raise ValueError("Error: Stock symbol not found.")
-                
+               
                 if stock_symbol.endswith(".IS"):
                     stock_symbol = stock_symbol[:-3]
 
@@ -121,7 +126,7 @@ class Commands:
                             self.db.add_stock(user_id, stock_symbol, quantity,price)
                             stock = self.db.get_user_stock(user_id, stock_symbol)
                             self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
-                            update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {quote['price']}.")
+                            update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
                         conn.commit()
                 
                 else:
@@ -139,14 +144,20 @@ class Commands:
 
                 stock_symbol = command_params[1].upper()
                 quantity = int(command_params[2])
-                quote = self.request.get_price(stock_symbol)
-                price = float(command_params[3]) if len(command_params) == 4 else quote["price"]
+                
+                if stock_symbol in self.request.stock_symbols:
+                    price = float(self.request.stock_prices[stock_symbol])
+                else:
+                    quote = self.request.get_price(stock_symbol)
+                    if "error" in quote:
+                        raise ValueError("Error: Stock symbol not found.")
+                    else:
+                        price = float(quote["price"])
+                        self.request.stock_prices[stock_symbol] = price
+
 
                 if quantity <= 0 or price <= 0:
                     raise ValueError("Error: Quantity and price must be greater than 0.")
-                
-                if "error" in quote:
-                    raise ValueError("Error: Stock symbol not found.")
                 
                 if stock_symbol.endswith(".IS"):
                     stock_symbol = stock_symbol[:-3]
