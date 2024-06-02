@@ -36,13 +36,16 @@ class Request:
         else:
             return {"error": "No data found for ticker"}
 
+    def get_stock_dict(self):
+        return self.stock_prices
 
     def get_stock_names(self):
         response = requests.get(f"{self.stock_names_url}?indices_id={self.indice_id}&access_key={self.token}")
-        print(f"{self.stock_names_url}?indice_id={self.indice_id}&apikey={self.token}")
+        print(f"{self.stock_names_url}?indices_id={self.indice_id}&access_key={self.token}")
         print()
         if response.status_code == 200:
             data = response.json()
+            print(data)
             for stock in data["response"]:
                 self.stock_symbols.append(stock["short_name"])
         else:
@@ -52,8 +55,10 @@ class Request:
         if self.stock_symbols:
             response = requests.get(f"{self.stock_prices_url}?symbol={','.join(self.stock_symbols)}&access_key={self.token}")
             logging.info(f"{self.stock_prices_url}?symbol={','.join(self.stock_symbols)}&access_key={self.token}")
+            print(response)
             if response.status_code == 200:
                 data = response.json()
+                print(data)
                 if data["code"] == 200:
                     logging.info("Stock prices fetched successfully at {}".format(time.ctime()))
                     print(data)
@@ -70,12 +75,16 @@ class Request:
 
     def start_periodic_fetch(self):
         self.get_stock_names()
+        print("get_stock_name çalıştı")
         threading.Thread(target=self._periodic_fetch, daemon=True).start()
 
     def _periodic_fetch(self):
          while True:
+            if not self.stock_prices:
+                self.get_stock_prices()
+            print(self.stock_prices)
             now = datetime.now()
-            if now.weekday() < 5 and 10 <= now.hour :
+            if now.weekday() < 5 and 10 <= now.hour < 23:
                 logging.info("Fetching stock prices at {}".format(time.ctime()))
                 self.get_stock_prices()
-            time.sleep(300)  # Check every 5 minutes
+            time.sleep(30)  # Check every 5 minutes

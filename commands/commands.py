@@ -1,5 +1,8 @@
 from telegram import Update
 from telegram.ext import CallbackContext
+import matplotlib.pyplot as plt
+from prettytable import PrettyTable
+import io
 import datetime
 class Commands:
     def __init__(self, db, request):
@@ -13,17 +16,38 @@ class Commands:
 
     def help(self, update: Update, context: CallbackContext):
         help_text = (
-            "Here are the available commands:\n\n"
-            "/start - Start the bot and receive a welcome message\n"
-            "/help - Get a list of available commands\n"
-            "/register - If you haven't registered to the bot yet!\n"
+            "The following commands are available:\n"
+            "/register - Register to the bot\n"
             "/unregister - Unregister from the bot\n"
-            "/view_stocks - View your current stocks\n"
-            "/buy - Buy a stock <symbol> <quantity> <price(optional)>\n"
-            "/sell - Sell a stock <symbol> <quantity> <price(optional)>\n"
-            "\n"
+            "/buy <symbol> <quantity> <price(optional)> - Buy a stock\n"
+            "/sell <symbol> <quantity> <price(optional)> - Sell a stock\n"
+            "/view_stocks - View your stocks and budget\n"
+            "/add_balance <amount> - Add balance to your account\n"
+            "/withdraw <amount> - Withdraw balance from your account\n"
+            "/withdraw_all - Withdraw all balance from your account\n"
+
+
         )
         update.message.reply_text(help_text)
+
+    def generate_pie_chart(self,labels, sizes):
+        plt.figure(figsize=(7, 5))  # Smaller figure size for a more compact look
+        _, texts, autotexts = plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140, pctdistance=0.75)
+
+        # Increase the size of the percentage texts and labels for better readability
+        for text in texts:
+            text.set_fontsize(15)
+        for autotext in autotexts:
+            autotext.set_fontsize(15)  # Increase the fontsize of the autotexts (percentages)
+
+        plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+        # Save the pie chart as a bytes object
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight')  # Use 'bbox_inches' to tightly fit the plot
+        buf.seek(0)
+        plt.close()  # Important to close the plot to free up memory
+        return buf
     
     def register(self, update, context):
         user_id = update.message.from_user.id
@@ -54,14 +78,32 @@ class Commands:
         else:
             update.message.reply_text("You are not registered already!")
 
-    def view_stocks(self, update, context):
-        budget = self.db.get_user_budget(update.message.from_user.id)
-        stocks = self.db.get_user_stocks(update.message.from_user.id)
-        stock_list = ""
+    def view_stocks(self, update: Update, context: CallbackContext):
+        user_id = update.message.from_user.id
+        budget = self.db.get_user_budget(user_id)
+        stocks = self.db.get_user_stocks(user_id)
+
         if stocks:
+            labels = []
+            sizes = []
+            # Initialize header and format it properly
+            table_text = "Stock    Quantity      Avg        Total\n"
+            table_text += "-"*42 + "\n"  # Adds a dividing line for clarity
+
             for stock in stocks:
-                stock_list += f"Stock: {stock[0]}, Quantity: {stock[1]}, Average Price: {stock[2]}\n"
-        update.message.reply_text(f"Budget: {budget[0]}\n{stock_list}")        
+                total_value = stock[1] * stock[2]
+                labels.append(stock[0])  # Adding labels for the pie chart
+                sizes.append(total_value)  # Adding values for the pie chart
+                # Properly formatted string line for each stock
+                table_text += f"{stock[0]:<10} {stock[1]:<9} ${stock[2]:<9,.2f} ${total_value:,.2f}\n"
+            
+            table_text += "-"*42 + "\n"  # Adds a dividing line for clarity
+            table_text += f"Budget: ${budget[0]:,.2f}\n"
+            chart = self.generate_pie_chart(labels, sizes)
+            update.message.reply_photo(photo=chart)
+            update.message.reply_text(table_text)
+        else:
+            update.message.reply_text("You currently have no stocks in your portfolio.")
     
     def buy(self, update, context):
             user_id = update.message.from_user.id
@@ -101,13 +143,13 @@ class Commands:
                                 new_quantity = stock[1] + quantity
                                 new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
-                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"BUY")
                                 update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
 
                             else:
                                 self.db.add_stock(user_id, stock_symbol, quantity, price)
                                 stock = self.db.get_user_stock(user_id, stock_symbol)
-                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"BUY")
                                 update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
                             self.db.add_balance(user_id, -1 * quantity * price)
                             conn.commit()
@@ -122,12 +164,12 @@ class Commands:
                                 new_quantity = int(stock[1]) + quantity
                                 new_average = ((stock[2] * stock[1]) + (quantity * price)) / new_quantity
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, new_average)
-                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"BUY")
                                 update.message.reply_text(f"Bought {quantity} shares of {stock_symbol} at {price} successfully!")
                             else:
                                 self.db.add_stock(user_id, stock_symbol, quantity,price)
                                 stock = self.db.get_user_stock(user_id, stock_symbol)
-                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "BUY", datetime.datetime.now())
+                                self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"BUY")
                                 update.message.reply_text( f"New stock {stock_symbol} added to your portfolio with {quantity} shares at {price}.")
                             self.db.add_balance(user_id, -1 * quantity * price)
                             conn.commit()
@@ -179,7 +221,7 @@ class Commands:
                                 self.db.delete_stock(user_id, stock_symbol)
                             else:
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, stock[2])
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "SELL", datetime.datetime.now())
+                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"SELL")
                             update.message.reply_text(f"Sold {quantity} shares of {stock_symbol} at {price} successfully!")
                             self.db.add_balance(user_id, quantity * price)
                         else:
@@ -199,7 +241,7 @@ class Commands:
                                 self.db.delete_stock(user_id, stock_symbol)
                             else:
                                 self.db.update_stock(user_id, stock_symbol, new_quantity, stock[2])
-                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, "SELL", datetime.datetime.now())
+                            self.db.add_transaction(stock[3],user_id, stock_symbol, quantity, price, datetime.datetime.now(),"SELL")
                             update.message.reply_text(f"Sold {quantity} shares of {stock_symbol} at {price} successfully!")
                             self.db.add_balance(user_id, quantity * price)
                         else:
@@ -253,6 +295,19 @@ class Commands:
         else:
             update.message.reply_text("You need to register first using /register.")
 
+    def withdraw_all(self, update, context):
+        user_id = update.message.from_user.id
+        if self.db.check_if_user_exists(user_id):
+            budget = self.db.get_user_budget(user_id)
+            if budget[0] > 0:
+                self.db.withdraw_balance(user_id, budget[0])
+                update.message.reply_text(f"Withdrew {budget[0]} from your balance.")
+                self.db.add_transaction(None,user_id, None, None, budget[0], datetime.datetime.now(),"WITHDRAW")
+            else:
+                update.message.reply_text("You don't have any balance to withdraw.")
+        else:
+            update.message.reply_text("You need to register first using /register.")
+
     def view_transactions(self, update, context):
         if self.db.check_if_user_exists(update.message.from_user.id):
             if self.db.check_if_admin(update.message.from_user.id):
@@ -270,6 +325,6 @@ class Commands:
         else:
             update.message.reply_text("You need to register first using /register.")
 
-
-
-
+    def get_stock_dict(self, update, context):
+        update.message.reply_text(self.request.get_stock_dict())
+    

@@ -16,7 +16,8 @@ class Bot:
         self.dispatcher.add_handler(CommandHandler("view_stocks", self.commands.view_stocks))
         self.dispatcher.add_handler(CommandHandler("add_balance", self.commands.add_balance))
         self.dispatcher.add_handler(CommandHandler("withdraw", self.commands.withdraw))
-
+        self.dispatcher.add_handler(CommandHandler("get_stock_dict", self.commands.get_stock_dict))
+        self.dispatcher.add_handler(CommandHandler("withdraw_all", self.commands.withdraw_all))
 
     def start(self):
         self.handle_commands()
